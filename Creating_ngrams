@@ -1,0 +1,806 @@
+import java.io.*;
+import java.util.*;
+
+class Ngram1{
+  String ngr;
+	int count;
+	
+	
+	public void addNgram (String ngr,int count)
+	{
+		this.ngr = ngr;
+		this.count = this.count+ count ;
+	}
+	
+	public Ngram1()
+	{
+		this.ngr = "NULL";
+		this.count = 0;
+	}
+}
+
+public class ngram
+{
+	public static void main(String[] args) throws FileNotFoundException
+	{
+		
+		
+		if((args[0].compareTo("--train")== 0) && (args[3].compareTo("--model")==0))
+		{
+			if(args.length != 5)
+			{
+				System.err.println("Please supply training set, ngramsize and model file");
+				System.exit(1);
+			}
+			String[]in1 = {args[1],args[2],args[4]};
+			ngrammodel(in1);
+		}
+		else
+		{
+			if((args[0].compareTo("--test")== 0) && (args[2].compareTo("--model")==0) && (args[4].compareTo("--delta")==0))
+			{
+				if(args.length != 6)
+				{
+					System.err.println("Please supply test set, model file and delta value");
+					System.exit(1);
+				}
+				
+				String[] in2 = {args[1],args[3],args[5]};
+				testtit(in2);
+			}
+			else
+			{
+				System.out.println("Not in proper format to generate Ngram model or test the model");
+			}
+		}
+		
+		
+	}
+	
+	public static void ngrammodel(String[] input) throws FileNotFoundException
+	{
+		int ngramsize = Integer.parseInt(input[1]);
+		final OutputStream os = new FileOutputStream(input[2]);
+		final PrintStream printStream = new PrintStream(os);
+		
+		List <String> Vocabulary = new ArrayList<String>();
+		Vocabulary.add("<s>");
+		Vocabulary.add("</s>");
+		Vocabulary.add("<UNK>");
+		
+		//CHECK NGRAM SIZE
+		if(ngramsize < 1)
+		{
+			System.out.println("Error: Ngram size is less than one");
+			System.exit(1);
+		}
+
+		// GET THE TRAINING TOKEN LIST 
+		List<String> tokenlist = new ArrayList<String>();
+		Scanner t = new Scanner(new File(input[0]));
+		do
+		{
+			if(t.hasNext())
+			{
+				String s = t.next();
+				
+				//System.out.println(s);
+				tokenlist.add(s.toLowerCase());
+				
+			
+				
+			}
+			
+		}while(t.hasNext());
+		
+       t.close();
+       
+       //BUILD THE VOCABULARY
+       for(int i =0;i < tokenlist.size(); i++)
+       {
+    	   if(!Vocabulary.contains(tokenlist.get(i)))
+    	   {
+    		   Vocabulary.add(tokenlist.get(i));
+    	   }
+       }
+       
+       
+       Ngram1[][] ngraminfo1 = new Ngram1[ngramsize][1000];
+		
+		for(int i =0;i<ngramsize; i++)
+		{
+			for(int j = 0;j < 1000; j++)
+			{
+				ngraminfo1[i][j] = new Ngram1();
+			}
+		}
+       
+       // BUILD NGRAM MODEL HERE AND WRITE INTO A MODEL FILE
+       
+       printStream.println("NGRAMSIZE");
+       printStream.println(ngramsize);
+        
+       
+       
+       
+       for(int i = 1; i<= ngramsize; i++)
+       {
+    	   printStream.flush();
+    	   ngraminfo1 = ngrambuilder(i, tokenlist,printStream,ngraminfo1,0,(i-1));
+       }
+       
+       printStream.println("VOCABULARY");
+       for(int i = 0; i<Vocabulary.size(); i++)
+       {
+    	   printStream.println(Vocabulary.get(i));
+       }
+       printStream.println("====");	   
+       printStream.close();
+       
+       System.out.println("Ngram model successfully built....");
+	
+	}
+	
+	public static Ngram1[][] ngrambuilder(int nsize, List<String> tokens,PrintStream printStream,Ngram1[][]ngraminfo1,int saveflag,int index) throws FileNotFoundException
+	{
+		
+	    printStream.flush();
+	   // System.out.println(saveflag);
+		ArrayList<String> ngramlists = new ArrayList<String>();
+		ArrayList<String> subtokenlist = new ArrayList<String>();
+		
+		//WRITE THE NAME OF N-GRAMS
+		String name = "";
+		name = name.concat(nsize+"-GRAM");
+		System.out.println(name);
+		
+		// DECLARE OBJECTS OF NGRAM TYPE 
+		Ngram1[] ngraminfo = new Ngram1[ngraminfo1[0].length];
+		for(int i =0;i< ngraminfo1[0].length; i++)
+		{
+			ngraminfo[i] = new Ngram1();
+		}
+		
+		
+		
+		// FORM NGRAMS 
+		 
+		 for(int i = 0; i < tokens.size(); i++)
+	     {
+			 
+			 if(!(tokens.get(i).contains("</s>")))
+			 {
+				 subtokenlist.add(tokens.get(i));
+			 }
+			 
+			 else
+			 {
+				 subtokenlist.add(tokens.get(i));
+				 for(int k = 0;k < subtokenlist.size(); k++)
+				 {
+					 String ng = "";		 
+					 if((subtokenlist.size()-k) >= nsize)
+					 {
+						 for(int j = 0; j < nsize; j++)
+						 {
+							 if(j == 0)
+							 {
+								 ng = ng.concat(subtokenlist.get(k+j));
+							 }
+							 else
+							 {
+								 ng = ng.concat(" "+subtokenlist.get(k+j));
+							 }
+						 }
+						 ngramlists.add(ng);
+						 
+						 ng = "";	 
+					 }
+					 else
+					 {
+						 break;
+					 }		
+				 }
+				 subtokenlist.clear();
+				 
+			 }
+			 			 
+			 
+		     
+	       }
+		
+		// GET DISTINCT NGRAMS AND COUNTS
+		
+		 int dontadd = 0;
+		 for(int l = 0;l < ngramlists.size(); l++)
+		   {
+			   String te = ngramlists.get(l);
+			   dontadd = 0;
+			   
+			   // CHECK IF IT IS IN THE NGRAM INFO LIST
+			   
+			   for(int i =0 ;i < 1000; i++)
+			   {
+				   if(ngraminfo[i].ngr.compareTo(te)== 0)
+				   {
+					   dontadd = 1;
+					   ngraminfo[i].count = ngraminfo[i].count + 1;
+					   break;
+					   
+					   
+				   }
+			   }
+			   
+			   if(dontadd == 0)
+			   {
+				   for(int i =0 ;i < 1000; i++)
+				   {
+					   if(ngraminfo[i].ngr == "NULL")
+					   {
+  					   
+						   ngraminfo[i].ngr = te;
+  				
+						   ngraminfo[i].count = ngraminfo[i].count + 1;
+  					  
+						   break;
+					   }
+				   }
+				   
+				   
+			   }
+			      
+		   }
+		   
+		   if(saveflag == 0)
+		   {
+			   
+			   printStream.println(name);
+			   for(int i =0 ; i< ngraminfo.length; i++)
+			   {
+				   if(ngraminfo[i].ngr.compareTo("NULL") != 0)
+				   {
+					  // System.out.flush();
+					   //System.out.println(ngraminfo[i].ngr +"="+ngraminfo[i].count );
+					   printStream.print(ngraminfo[i].ngr +"="+ngraminfo[i].count);
+					   printStream.println("");
+	    		  
+				   }
+				   else
+				   {
+					  // System.out.println("I broke");
+					   break;
+				   }
+			   }
+		
+			   printStream.println("====");
+		   }
+		   
+		   else
+		   {
+			   for(int i =0; i<ngraminfo.length; i++)
+			   {
+				   if(ngraminfo[i].ngr != "NULL")
+				   {
+					   ngraminfo1[index][i].ngr = ngraminfo[i].ngr;
+					   ngraminfo1[index][i].count = ngraminfo[i].count;
+					   
+				   }
+				   else
+				   {
+					   break;
+				   }
+			   }
+		   }
+		 		
+		return(ngraminfo1);
+	}
+	
+	public static void testtit(String[] input) throws FileNotFoundException
+	{
+		Scanner textt1 = new Scanner(new File(input[0]));
+		InputStream modelIn = new FileInputStream("C:\\Users\\Harsha.Harsha-PC\\Desktop\\Models\\en-sent.bin");
+		InputStream modelInn = new FileInputStream("C:\\Users\\Harsha.Harsha-PC\\Desktop\\Models\\en-token.bin");
+		List <String> testtokenlist = new ArrayList<String>();
+		
+		List <String> Vocabulary = new ArrayList<String>();
+		
+		Scanner testt = new Scanner(new File(input[1]));
+		
+
+		
+		double delta = Float.parseFloat(input[2]);
+		System.out.println("Testing the model....");
+		
+		// CHECK IF DELTA IS POSITIVE
+		
+		if(delta < 0)
+		{
+			System.out.println("Delta is negative - Exiting...");
+			System.exit(0);
+		}
+		
+		// GET NGRAMSIZE
+		
+		
+		int ngflag = 0, testnsize = 0;
+		int voc = 0;
+		
+		do
+		{
+			
+			if(testt.hasNext())
+			{
+			
+				if(testt.next().compareTo("NGRAMSIZE")==0)
+				{
+					ngflag = 1;
+				}
+				if(ngflag == 1)
+				{
+					testnsize = Integer.parseInt(testt.next());
+					break;
+				}
+			}	
+		}while(testt.hasNext());
+		
+		testt.close();
+		//System.out.println("The ngram size is: "+testnsize);
+		
+		//INITIALIZE REQUIRED NUMBER OF OBJECTS BASED ON NGRAMSIZE - TO CAPTURE DATA FROM MODEL FILE
+		
+		Ngram1[][] ngraminfo = new Ngram1[testnsize][1000];
+		
+		for(int i =0;i<testnsize; i++)
+		{
+			for(int j = 0;j < 1000; j++)
+			{
+				ngraminfo[i][j] = new Ngram1();
+			}
+		}
+		
+		Scanner[] test = new Scanner[testnsize+1];
+		int[] stflags = new int[testnsize+1];
+		for(int i =0;i<(testnsize+1);i++)
+		{
+			test[i] = new Scanner(new File(input[1]));
+			stflags[i] = 0;
+		}
+		
+		do
+		{
+			
+			if(test[testnsize].hasNext())
+			{
+				String s  = test[testnsize].next();
+				if(s.compareTo("VOCABULARY")==0)
+				{
+					voc = 1;
+				}
+				else
+				{
+					if(voc == 1)
+					{
+						if(s.compareTo("====")==0)
+						{
+							break;
+						}
+						else
+						{
+							Vocabulary.add(s);
+						}
+
+					}
+				}	
+					
+			}	
+		}while(test[testnsize].hasNext());
+		
+		test[testnsize].close();
+		
+	    for(int i = 0;i<testnsize; i++)
+	    {
+	    	int k = i+1;
+	    	String nm = "";
+	    	nm = nm.concat(k+"-GRAM");
+	    	String prev = "";
+	    	do
+	    	{
+	    		if(test[i].hasNext())
+	    		{
+	    			String s = test[i].next();
+	    			if(s.compareTo(nm)== 0)
+	    			{
+	    				//System.out.println(s);
+	    				stflags[i] = 1;
+	    			}
+	    			else
+	    			{
+	    				if(stflags[i]== 1)
+	    				{
+	    					if(s.compareTo("====")==0)
+	    					{
+	    						test[i].close();
+	    						break;
+	    					}
+	    					else
+	    					{
+	    						if(s.contains("="))
+	    						{
+	    							String snew[] = s.split("=");
+	    							
+	    							if(prev.compareTo("")== 0)
+									{
+										prev = prev.concat(snew[0]);
+									}
+									else
+									{
+										prev = prev.concat(" "+snew[0]);
+									}
+	    							
+	    							
+	    							
+	    							
+	    							for(int h = 0; h < ngraminfo[i].length; h++)
+	    							{
+	    								if(ngraminfo[i][h].ngr.compareTo("NULL")== 0)
+	    								{
+	    									ngraminfo[i][h].ngr = prev;
+	    									ngraminfo[i][h].count = Integer.parseInt(snew[1]); 
+	    									
+	    									break;
+	    								}
+	    							}
+	    							
+	    							
+	    							prev = "";
+	    						}
+	    						else
+	    						{
+	    							String snew[] = s.split(" ");
+	    							for(int m = 0;m< snew.length;m++)
+	    							{
+	    								if(snew[m].compareTo(" ")!= 0)
+	    								{
+	    									if(prev.compareTo("")== 0)
+	    									{
+	    										prev = prev.concat(snew[m]);
+	    									}
+	    									else
+	    									{
+	    										prev = prev.concat(" "+snew[m]);
+	    									}
+	    								}
+	    							}
+	    						}
+	    						
+	    					}
+	    					
+	    				}
+	    			}
+	    		}
+	    		
+	    	}while(test[i].hasNext());
+	    	
+	    	
+	    }
+	     
+	    
+	    for(int i = 0;i < testnsize; i++)
+	    {
+	    	//System.out.println((i+1)+"-GRAM");
+	    	for(int j =0; j<ngraminfo[i].length; j ++)
+	    	{
+	    		if(ngraminfo[i][j].ngr.compareTo("NULL")== 0)
+	    		{
+	    			break;
+	    		}
+	    		else
+	    		{
+	    			//System.out.println(ngraminfo[i][j].ngr+ " -> "+ngraminfo[i][j].count);
+	    		}
+	    	}
+	    }
+	    
+		
+		// LIST THE SENTENCES AND TOKENS OF THE TEST SET
+		
+		try
+		{
+			  
+			 // String textt1 = new Scanner(new File(input[0])).useDelimiter("\\A").next();
+			do
+			{
+				if(textt1.hasNext())
+				{
+					String s = textt1.next();
+					
+					//System.out.println(s);
+					testtokenlist.add(s.toLowerCase());
+					
+				
+					
+				}
+				
+			}while(textt1.hasNext());
+			
+	       textt1.close();
+			 
+			  
+			  
+			  //INITIALIZE NGRAMS FOR TEST SET
+			  
+			  Ngram1[][] ngraminfo1 = new Ngram1[testnsize][1000];
+			  
+			  for(int i =0;i<testnsize; i++)
+			  {
+				  for(int j =0;j < 1000; j++)
+				  {
+					  ngraminfo1[i][j] = new Ngram1();
+				  }
+				  
+			  }
+			  
+			  final OutputStream os = new FileOutputStream("C:\\Users\\Harsha.Harsha-PC\\Desktop\\Natural_lang_processing\\Output\\Testing.txt");
+			  final PrintStream printStream = new PrintStream(os);
+			  
+			// BUILD NGRAMS FROM THE TEST SET TOKENLIST
+			  
+			  for(int i = 1; i<= testnsize; i++)
+		       {
+		    	   ngraminfo1 = ngrambuilder(i,testtokenlist,printStream,ngraminfo1,1,(i-1));
+		       }
+			  
+			  
+			  
+			  for(int i = 0;i < testnsize; i++)
+			    {
+			    	//System.out.println((i+1)+"-GRAM");
+			    	for(int j =0; j<ngraminfo1[i].length; j ++)
+			    	{
+			    		if(ngraminfo1[i][j].ngr.compareTo("NULL")== 0)
+			    		{
+			    			break;
+			    		}
+			    		else
+			    		{
+			    			//System.out.println(ngraminfo1[i][j].ngr);
+			    		}
+			    	}
+			    }
+			    
+			  // COPY COUNTS FROM MODEL DATA TO TEST NGRAM COUNTS
+			  
+			  for(int i = 0;i < testnsize; i++)
+			    {
+			    	//System.out.println((i+1)+"-GRAM");
+			    	for(int j =0; j<ngraminfo1[i].length; j ++)
+			    	{
+			    		int match = 0;
+			    		if(ngraminfo1[i][j].ngr.compareTo("NULL")== 0)
+			    		{
+			    			break;
+			    		}
+			    		else
+			    		{
+			    			// SEARCH FOR THAT NGRAM IN CORRESPONDING NGRAM INFO OF THE MODEL DATA
+			    			
+			    			
+			    			
+			    			for(int k =0; k< ngraminfo[i].length; k++)
+			    			{
+			    				if(ngraminfo[i][k].ngr.compareTo(ngraminfo1[i][j].ngr) == 0)
+			    				{
+			    					ngraminfo1[i][j].count = ngraminfo[i][k].count;
+			    					
+			    					match = 1;
+			    					break;
+			    				}
+			    			}
+			    					    			
+			    			if(match == 0)
+			    			{
+			    				ngraminfo1[i][j].count = 0;
+			    				
+			    			}
+			    			
+			    		}
+			    	}
+			    }
+			  
+			  
+			  
+			  
+			  //COMPUTE THE PROBABILITY OF THE SENTENCES WITH ADDTIVE SMOOTHING
+			  int strt = 0;double prob = 0;
+			  List <String> sen = new ArrayList<String>();
+			  for(int i =0;i<testtokenlist.size(); i++)
+			  {
+				  String s = testtokenlist.get(i);
+				  if(s.compareTo("<s>")==0)
+				  {
+					  strt = 1;
+					  sen.add(s);
+				  }
+				  else
+				  {
+					  if(strt == 1)
+					  {
+						  if(s.compareTo("</s>")== 0)
+						  {
+							  sen.add(s);
+							  // COMPUTE PROBABILITY
+							  prob = calcprob(sen,delta,ngraminfo1,testnsize,Vocabulary.size());
+							  System.out.println("Probability of the sentence: ");
+							  System.out.println(sen+"----->");
+							  System.out.println(prob);
+							  double lgp = Math.log(prob)/Math.log(10);
+							  System.out.println("Log of the probability: "+lgp);
+							  sen.clear();
+						  }
+						  else
+						  {
+							  sen.add(s);
+						  }
+					  }
+				  }
+			  }
+			  		  
+			  
+			  
+			  
+		}
+	    catch (IOException e)
+	    {
+	    	e.printStackTrace();
+		}
+		finally 
+		{
+			if (modelIn != null || modelInn != null) 
+			{
+				try 
+					{
+				      modelIn.close();
+				      modelInn.close();
+				    }
+				    catch (IOException e)
+				    {
+				    
+				    }
+			}
+		
+		}
+		
+
+		
+		
+		
+	}
+	
+	public static double calcprob(List <String> sen,double delta,Ngram1[][]ngraminfo1,int testnsize, int vocsize)
+	{
+		double prob = 1;
+		// CALCULATE PROBABILITY
+		String s = "";
+		String prevs = "";
+		
+		
+		if(testnsize == 1)
+		{
+			for(int i =0; i<sen.size();i++)
+			{
+				String s2 = sen.get(i);
+				for(int j =0;j<ngraminfo1[0].length; j++)
+				{
+					if(ngraminfo1[0][j].ngr.compareTo(s2) == 0)
+					{
+						
+						prob = prob * ((delta + 1)/((delta * vocsize )+(ngraminfo1[0][j].count)));
+						break;
+					}
+				}
+				
+			}
+			
+			
+		}
+		
+		else
+		{
+		
+		for(int i =0; i<sen.size();i++)
+		{
+			prevs = s;
+			if(i <= testnsize-1)
+			{
+				if(i==0)
+				{
+					s = s.concat(sen.get(i));
+					for(int j =0;j<ngraminfo1[i].length; j++)
+					{
+						if(ngraminfo1[i][j].ngr.compareTo(s) == 0)
+						{
+							
+							prob = prob * ((delta + 1)/((delta * vocsize )+(ngraminfo1[i][j].count)));
+							break;
+						}
+					}
+				}
+				else
+				{
+					s = s.concat(" " +sen.get(i));
+					int count1 = 0, count2 = 0;
+					for(int j =0;j<ngraminfo1[i].length; j++)
+					{
+						if(ngraminfo1[i][j].ngr.compareTo(s) == 0)
+						{
+							count1 = ngraminfo1[i][j].count;
+							
+							s = "";
+							
+							break;
+						}
+					}
+					
+					for(int j =0;j<ngraminfo1[i-1].length; j++)
+					{
+						if(ngraminfo1[i-1][j].ngr.compareTo(prevs) == 0)
+						{
+							count2 = ngraminfo1[i-1][j].count;
+							
+							prevs = "";
+							break;
+						}
+					}
+					prob = prob * ((delta + count1)/((delta * vocsize)+(count2)));
+					count1 = 0;
+					count2 = 0;
+					
+				}
+				
+			}
+			else
+			{
+				 String s1 = "", s2 = "";
+				 s1 = s1.concat(sen.get(i)+" "+sen.get(i-1)+" "+sen.get(i-2));
+				 s2 = s2.concat(sen.get(i-1)+" "+sen.get(i-2));
+				 int count1 = 0,count2 = 0;
+				 
+				 for(int j =0;j<ngraminfo1[testnsize-1].length; j++)
+					{
+						if(ngraminfo1[testnsize-1][j].ngr.compareTo(s1) == 0)
+						{
+							count1 = ngraminfo1[testnsize-1][j].count;
+							
+							s1 = "";
+							
+							break;
+						}
+					}
+				 
+				 for(int j =0;j<ngraminfo1[testnsize-2].length; j++)
+					{
+						if(ngraminfo1[testnsize-2][j].ngr.compareTo(s2) == 0)
+						{
+							count2 = ngraminfo1[testnsize-2][j].count;
+							
+							s2 = "";
+							break;
+						}
+					}
+					prob = prob * ((delta + count1)/((delta * vocsize)+(count2)));
+					count1 = 0;
+					count2 = 0;
+				 
+			}
+		}
+		
+		
+		
+		}
+		
+		return prob;
+	}
+	
+	
+	
+}
