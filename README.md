@@ -1,3 +1,3 @@
 Natural-Langauge-Processing
 ===========================
-This code creates a Naive Bayes classifier using NLTK and Python.
+The Naive Bayes classifier code was the Salary predictor for Kaggle competition.
